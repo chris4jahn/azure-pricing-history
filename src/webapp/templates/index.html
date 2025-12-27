@@ -143,10 +143,10 @@
         }
         
         .stat-card {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px var(--shadow);
             transition: transform 0.3s ease;
         }
         
@@ -155,7 +155,7 @@
         }
         
         .stat-card h3 {
-            color: #667eea;
+            color: var(--category-border);
             font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -165,20 +165,20 @@
         .stat-card .value {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #333;
+            color: var(--text-primary);
         }
         
         .stat-card .label {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 0.9rem;
             margin-top: 5px;
         }
         
         .controls {
-            background: white;
+            background: var(--card-bg);
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px var(--shadow);
             margin-bottom: 30px;
             display: flex;
             gap: 15px;
@@ -188,20 +188,22 @@
         
         .controls label {
             font-weight: 600;
-            color: #333;
+            color: var(--text-primary);
         }
         
         .controls select {
             padding: 10px 15px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid var(--border-color);
             border-radius: 8px;
             font-size: 1rem;
             transition: border-color 0.3s ease;
+            background: var(--card-bg);
+            color: var(--text-primary);
         }
         
         .controls select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--category-border);
         }
         
         .main-grid {
@@ -212,21 +214,21 @@
         }
         
         .pricing-tree-container {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px var(--shadow);
             max-height: 800px;
             overflow-y: auto;
         }
         
         .pricing-tree-container h2 {
-            color: #333;
+            color: var(--text-primary);
             margin-bottom: 20px;
             font-size: 1.5rem;
             position: sticky;
             top: 0;
-            background: white;
+            background: var(--card-bg);
             padding: 10px 0;
             z-index: 10;
         }
@@ -246,45 +248,45 @@
         }
         
         .category-header {
-            background: #f0f3ff;
-            border-left: 4px solid #667eea;
+            background: var(--category-bg);
+            border-left: 4px solid var(--category-border);
             font-weight: 600;
-            color: #333;
+            color: var(--text-primary);
         }
         
         .category-header:hover {
-            background: #e0e7ff;
+            background: var(--category-hover);
         }
         
         .sku-header {
-            background: #f9fafb;
-            border-left: 4px solid #764ba2;
+            background: var(--sku-bg);
+            border-left: 4px solid var(--sku-border);
             margin-left: 20px;
             font-weight: 500;
-            color: #444;
+            color: var(--text-primary);
         }
         
         .sku-header:hover {
-            background: #f3f4f6;
+            background: var(--sku-hover);
         }
         
         .meter-item {
-            background: #fafafa;
+            background: var(--meter-bg);
             margin-left: 40px;
             font-size: 0.95rem;
-            color: #555;
-            border-left: 2px solid #d1d5db;
+            color: var(--text-secondary);
+            border-left: 2px solid var(--meter-border);
         }
         
         .meter-item:hover {
-            background: #e5e7eb;
-            border-left-color: #667eea;
+            background: var(--meter-hover);
+            border-left-color: var(--category-border);
         }
         
         .expand-icon {
             font-weight: bold;
             font-size: 1.2rem;
-            color: #667eea;
+            color: var(--category-border);
             min-width: 20px;
         }
         
@@ -297,13 +299,14 @@
             display: flex;
             gap: 15px;
             font-size: 0.85rem;
-            color: #666;
+            color: var(--text-secondary);
         }
         
         .stat-badge {
-            background: #e5e7eb;
+            background: var(--badge-bg);
             padding: 4px 10px;
             border-radius: 12px;
+            color: var(--text-primary);
         }
         
         .children {
@@ -316,15 +319,15 @@
         }
         
         .detail-panel {
-            background: white;
+            background: var(--card-bg);
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px var(--shadow);
             min-height: 400px;
         }
         
         .detail-panel h2 {
-            color: #333;
+            color: var(--text-primary);
             margin-bottom: 20px;
             font-size: 1.5rem;
         }
@@ -332,7 +335,7 @@
         .detail-empty {
             text-align: center;
             padding: 60px 20px;
-            color: #999;
+            color: var(--text-tertiary);
         }
         
         .detail-empty svg {
@@ -349,7 +352,7 @@
         }
         
         .cheapest-region {
-            background: #d4edda;
+            background: var(--category-bg);
             padding: 20px;
             border-radius: 8px;
             border-left: 4px solid #28a745;
@@ -357,26 +360,26 @@
         }
         
         .cheapest-region h3 {
-            color: #155724;
+            color: var(--text-primary);
             margin-bottom: 10px;
         }
         
         .cheapest-region .region-name {
             font-size: 1.5rem;
             font-weight: bold;
-            color: #155724;
+            color: var(--text-primary);
         }
         
         .cheapest-region .region-price {
             font-size: 1.2rem;
-            color: #155724;
+            color: var(--text-secondary);
             margin-top: 5px;
         }
         
         .loading {
             text-align: center;
             padding: 40px;
-            color: #666;
+            color: var(--text-secondary);
         }
         
         .error {
@@ -408,6 +411,14 @@
 <body>
     <div class="container">
         <header>
+            <div class="dark-mode-toggle">
+                <span class="toggle-label">Dark Mode</span>
+                <div class="toggle-switch" onclick="toggleDarkMode()">
+                    <div class="toggle-slider">
+                        <span id="themeIcon">☀️</span>
+                    </div>
+                </div>
+            </div>
             <h1>📊 Azure Pricing History Dashboard</h1>
             <p>Browse Azure prices by category and track price changes over time</p>
         </header>
@@ -471,8 +482,54 @@
         let selectedMeterId = null;
         let selectedSkuFamily = null;
         
+        // Dark mode toggle
+        function toggleDarkMode() {
+            const body = document.body;
+            const isDark = body.classList.toggle('dark-mode');
+            const icon = document.getElementById('themeIcon');
+            
+            // Update icon
+            icon.textContent = isDark ? '🌙' : '☀️';
+            
+            // Save preference
+            localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+            
+            // Update chart if it exists
+            if (priceChart) {
+                updateChartColors(isDark);
+            }
+        }
+        
+        // Load dark mode preference on page load
+        function loadDarkModePreference() {
+            const darkMode = localStorage.getItem('darkMode');
+            const icon = document.getElementById('themeIcon');
+            
+            if (darkMode === 'enabled') {
+                document.body.classList.add('dark-mode');
+                icon.textContent = '🌙';
+            }
+        }
+        
+        // Update chart colors based on theme
+        function updateChartColors(isDark) {
+            if (!priceChart) return;
+            
+            const textColor = isDark ? '#e4e4e7' : '#333';
+            const gridColor = isDark ? '#374151' : 'rgba(0, 0, 0, 0.1)';
+            
+            priceChart.options.scales.y.ticks.color = textColor;
+            priceChart.options.scales.x.ticks.color = textColor;
+            priceChart.options.scales.y.grid.color = gridColor;
+            priceChart.options.scales.x.grid.color = gridColor;
+            priceChart.options.plugins.legend.labels.color = textColor;
+            
+            priceChart.update();
+        }
+        
         // Initialize the dashboard
         async function init() {
+            loadDarkModePreference();
             await loadSummary();
             await loadPricingTree();
         }
@@ -676,6 +733,11 @@
                 priceChart.destroy();
             }
             
+            // Get theme colors
+            const isDark = document.body.classList.contains('dark-mode');
+            const textColor = isDark ? '#e4e4e7' : '#333';
+            const gridColor = isDark ? '#374151' : 'rgba(0, 0, 0, 0.1)';
+            
             // Prepare data
             const labels = history.map(h => new Date(h.date).toLocaleDateString());
             const prices = history.map(h => h.price);
@@ -701,7 +763,10 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            display: true
+                            display: true,
+                            labels: {
+                                color: textColor
+                            }
                         },
                         tooltip: {
                             callbacks: {
@@ -715,9 +780,21 @@
                         y: {
                             beginAtZero: false,
                             ticks: {
+                                color: textColor,
                                 callback: function(value) {
                                     return getCurrencySymbol() + value.toFixed(4);
                                 }
+                            },
+                            grid: {
+                                color: gridColor
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: textColor
+                            },
+                            grid: {
+                                color: gridColor
                             }
                         }
                     }
