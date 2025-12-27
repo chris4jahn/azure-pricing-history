@@ -1,0 +1,12 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SQL_SERVER_FQDN": "sql-pricing-dev-neu.database.windows.net",
+    "SQL_DATABASE_NAME": "sqldb-pricing-dev",
+    "API_VERSION": "2023-01-01-preview",
+    "CURRENCIES": "USD,EUR",
+    "BATCH_SIZE": "500"
+  }
+}

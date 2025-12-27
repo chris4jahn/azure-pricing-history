@@ -1,0 +1,52 @@
+# Production environment variables
+# Copy this file to prod.tfvars and fill in your values
+
+#
+# Core Configuration
+#
+subscription_id = "your-subscription-id"
+tenant_id       = "your-tenant-id"
+environment     = "prod"
+location        = "westeurope"
+location_short  = "weu"
+
+#
+# SQL Server Configuration
+#
+sql_admin_login      = "your-admin-email@domain.com"
+sql_admin_object_id  = "your-admin-object-id"
+sql_max_size_gb      = 100
+sql_sku_name         = "GP_Gen5_2" # Production: 2 vCores
+sql_min_capacity     = 1.0          # Higher minimum for production
+sql_auto_pause_delay = -1           # Disable auto-pause in production
+sql_zone_redundant   = true         # Enable zone redundancy
+sql_allow_client_ip  = ""
+
+#
+# Monitoring Configuration
+#
+appinsights_retention_days   = 90
+log_analytics_retention_days = 90
+
+#
+# Web App Configuration
+#
+webapp_sku_name = "S1" # Standard tier for production
+
+#
+# Pricing API Configuration
+#
+azure_pricing_api_version = "2023-01-01-preview"
+pricing_currencies        = "USD,EUR,GBP,CHF,AUD,JPY"
+pricing_batch_size        = 90 # Must be <= 95 to avoid SQL parameter limits
+
+#
+# Tagging
+#
+tags = {
+  Owner       = "YourName"
+  CostCenter  = "Engineering"
+  Application = "Azure Pricing History"
+  Environment = "Production"
+  CriticalityLevel = "High"
+}

@@ -35,3 +35,14 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# ignore Mac system files
+.DS_Store
+# ignore IDE files
+.vscode/
+.idea/
+# ignore Python cache files
+__pycache__/
+*.pyc
+# ignore log files
+*.log

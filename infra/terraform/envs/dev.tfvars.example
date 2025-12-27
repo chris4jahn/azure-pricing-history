@@ -1,0 +1,51 @@
+# Development environment variables
+# Copy this file to dev.tfvars and fill in your values
+
+#
+# Core Configuration
+#
+subscription_id = "your-subscription-id"
+tenant_id       = "your-tenant-id"
+environment     = "dev"
+location        = "germanywestcentral"
+location_short  = "gwc"
+
+#
+# SQL Server Configuration
+#
+sql_admin_login      = "your-admin-email@domain.com"
+sql_admin_object_id  = "your-admin-object-id"
+sql_max_size_gb      = 32
+sql_sku_name         = "GP_S_Gen5_1" # Serverless
+sql_min_capacity     = 0.5
+sql_auto_pause_delay = 60
+sql_zone_redundant   = false
+sql_allow_client_ip  = "" # Optional: Your IP address for SQL access
+
+#
+# Monitoring Configuration
+#
+appinsights_retention_days   = 30
+log_analytics_retention_days = 30
+
+#
+# Web App Configuration
+#
+webapp_sku_name = "B1" # Basic tier
+
+#
+# Pricing API Configuration
+#
+azure_pricing_api_version = "2023-01-01-preview"
+pricing_currencies        = "USD,EUR"
+pricing_batch_size        = 90 # Must be <= 95 to avoid SQL parameter limits
+
+#
+# Tagging
+#
+tags = {
+  Owner       = "YourName"
+  CostCenter  = "Engineering"
+  Application = "Azure Pricing History"
+  Environment = "Development"
+}
