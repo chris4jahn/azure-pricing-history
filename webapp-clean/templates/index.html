@@ -6,50 +6,6 @@
     <title>Azure Pricing History Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        :root {
-            --bg-gradient-start: #667eea;
-            --bg-gradient-end: #764ba2;
-            --card-bg: white;
-            --text-primary: #333;
-            --text-secondary: #666;
-            --text-tertiary: #999;
-            --text-header: white;
-            --category-bg: #f0f3ff;
-            --category-hover: #e0e7ff;
-            --category-border: #667eea;
-            --sku-bg: #f9fafb;
-            --sku-hover: #f3f4f6;
-            --sku-border: #764ba2;
-            --meter-bg: #fafafa;
-            --meter-hover: #e5e7eb;
-            --meter-border: #d1d5db;
-            --badge-bg: #e5e7eb;
-            --border-color: #e0e0e0;
-            --shadow: rgba(0,0,0,0.1);
-        }
-        
-        body.dark-mode {
-            --bg-gradient-start: #1a1a2e;
-            --bg-gradient-end: #16213e;
-            --card-bg: #0f3460;
-            --text-primary: #e4e4e7;
-            --text-secondary: #a1a1aa;
-            --text-tertiary: #71717a;
-            --text-header: #e4e4e7;
-            --category-bg: #1e3a5f;
-            --category-hover: #2a4a6f;
-            --category-border: #4d7bb6;
-            --sku-bg: #1a2942;
-            --sku-hover: #233549;
-            --sku-border: #6b5b95;
-            --meter-bg: #172033;
-            --meter-hover: #1f2937;
-            --meter-border: #374151;
-            --badge-bg: #374151;
-            --border-color: #374151;
-            --shadow: rgba(0,0,0,0.3);
-        }
-        
         * {
             margin: 0;
             padding: 0;
@@ -58,10 +14,9 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
-            transition: background 0.3s ease;
         }
         
         .container {
@@ -71,57 +26,8 @@
         
         header {
             text-align: center;
-            color: var(--text-header);
+            color: white;
             margin-bottom: 30px;
-            position: relative;
-        }
-        
-        .dark-mode-toggle {
-            position: absolute;
-            top: 0;
-            right: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .toggle-switch {
-            position: relative;
-            width: 60px;
-            height: 30px;
-            background: rgba(255,255,255,0.3);
-            border-radius: 30px;
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-        
-        .toggle-switch:hover {
-            background: rgba(255,255,255,0.4);
-        }
-        
-        .toggle-slider {
-            position: absolute;
-            top: 3px;
-            left: 3px;
-            width: 24px;
-            height: 24px;
-            background: white;
-            border-radius: 50%;
-            transition: transform 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-        }
-        
-        body.dark-mode .toggle-slider {
-            transform: translateX(30px);
-        }
-        
-        .toggle-label {
-            color: var(--text-header);
-            font-size: 0.9rem;
-            font-weight: 500;
         }
         
         header h1 {

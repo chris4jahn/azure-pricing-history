@@ -12,7 +12,7 @@ from flask import Flask, render_template, jsonify, request
 import pyodbc
 
 # Add shared module to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'shared'))
 from azure_sql_auth import AzureSqlAuthenticator, SqlDatabaseConfig
 
 # Configure logging
