@@ -1,0 +1,137 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      action:
+        description: 'Terraform action'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+  pull_request:
+    paths:
+      - 'infra/terraform/**'
+      - '.github/workflows/deploy-infrastructure.yml'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.action || 'plan' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5"
+          terraform_wrapper: false
+
+      - name: Terraform Format Check
+        working-directory: ./infra/terraform
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        working-directory: ./infra/terraform
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: ./infra/terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ./infra/terraform
+        run: |
+          terraform plan \
+            -var-file=envs/${{ inputs.environment || 'dev' }}.tfvars \
+            -out=tfplan \
+            -no-color
+        continue-on-error: true
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Plan 📖
+            **Environment:** \`${{ inputs.environment || 'dev' }}\`
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`terraform
+            ${process.env.PLAN_OUTPUT}
+            \`\`\`
+            
+            </details>
+            
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Apply
+        if: inputs.action == 'apply' && github.event_name != 'pull_request'
+        working-directory: ./infra/terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy' && github.event_name != 'pull_request'
+        working-directory: ./infra/terraform
+        run: |
+          terraform destroy \
+            -var-file=envs/${{ inputs.environment }}.tfvars \
+            -auto-approve
+
+      - name: Upload Terraform Plan
+        if: inputs.action == 'plan' || github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ inputs.environment || 'dev' }}
+          path: ./infra/terraform/tfplan
+          retention-days: 5
+
+      - name: Terraform Outputs
+        if: inputs.action == 'apply'
+        working-directory: ./infra/terraform
+        run: |
+          echo "## Terraform Outputs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group:** $(terraform output -raw resource_group_name)" >> $GITHUB_STEP_SUMMARY
+          echo "**Function App:** $(terraform output -raw function_app_name)" >> $GITHUB_STEP_SUMMARY
+          echo "**Web App:** $(terraform output -raw web_app_name)" >> $GITHUB_STEP_SUMMARY
+          echo "**SQL Server:** $(terraform output -raw sql_server_name)" >> $GITHUB_STEP_SUMMARY
+          echo "**SQL Database:** $(terraform output -raw sql_database_name)" >> $GITHUB_STEP_SUMMARY

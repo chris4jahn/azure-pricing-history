@@ -1,0 +1,124 @@
+name: Deploy Function App
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/functions-python/**'
+      - 'src/shared/**'
+      - '.github/workflows/deploy-function-app.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -r src/functions-python/requirements.txt
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=term
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  deploy:
+    name: Deploy to Azure
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    environment: ${{ inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Function App Name
+        id: function_app
+        run: |
+          cd infra/terraform
+          terraform init
+          echo "name=$(terraform output -raw function_app_name)" >> $GITHUB_OUTPUT
+          echo "resource_group=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Prepare deployment package
+        working-directory: ./src/functions-python
+        run: |
+          # Install dependencies to .python_packages
+          pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+          
+          # Copy shared module
+          cp -r ../shared .python_packages/lib/site-packages/
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ steps.function_app.outputs.name }}
+          package: ./src/functions-python
+          respect-funcignore: true
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for deployment to complete..."
+          sleep 30
+          
+          # Get function status
+          az functionapp show \
+            --name ${{ steps.function_app.outputs.name }} \
+            --resource-group ${{ steps.function_app.outputs.resource_group }} \
+            --query "state" -o tsv
+
+      - name: Deployment Summary
+        run: |
+          echo "## Function App Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Function App:** ${{ steps.function_app.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group:** ${{ steps.function_app.outputs.resource_group }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✓ Deployed successfully" >> $GITHUB_STEP_SUMMARY

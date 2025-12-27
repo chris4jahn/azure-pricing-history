@@ -1,0 +1,109 @@
+name: Deploy Database Schema
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      grant_permissions:
+        description: 'Grant managed identity permissions'
+        required: false
+        type: boolean
+        default: true
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/deploy_complete.sql'
+      - 'scripts/grant_*_permissions.sql'
+      - '.github/workflows/deploy-database.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-schema:
+    name: Deploy SQL Schema
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get SQL Server details
+        id: sql
+        run: |
+          cd infra/terraform
+          terraform init
+          echo "server=$(terraform output -raw sql_server_name)" >> $GITHUB_OUTPUT
+          echo "database=$(terraform output -raw sql_database_name)" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyodbc azure-identity
+
+      - name: Deploy SQL Schema
+        working-directory: ./scripts
+        env:
+          SQL_SERVER: ${{ steps.sql.outputs.server }}
+          SQL_DATABASE: ${{ steps.sql.outputs.database }}
+        run: |
+          echo "Deploying schema to $SQL_SERVER/$SQL_DATABASE"
+          python deploy_schema.py
+
+      - name: Grant Function App Permissions
+        if: inputs.grant_permissions || github.event_name == 'push'
+        run: |
+          echo "Granting Function App permissions..."
+          az sql db query \
+            --server ${{ steps.sql.outputs.server }} \
+            --database ${{ steps.sql.outputs.database }} \
+            --auth-mode ActiveDirectoryIntegrated \
+            --query-file ./scripts/grant_function_permissions.sql || true
+
+      - name: Grant Web App Permissions
+        if: inputs.grant_permissions || github.event_name == 'push'
+        run: |
+          echo "Granting Web App permissions..."
+          az sql db query \
+            --server ${{ steps.sql.outputs.server }} \
+            --database ${{ steps.sql.outputs.database }} \
+            --auth-mode ActiveDirectoryIntegrated \
+            --query-file ./scripts/grant_webapp_permissions.sql || true
+
+      - name: Verify schema deployment
+        run: |
+          echo "Verifying schema deployment..."
+          az sql db show \
+            --server ${{ steps.sql.outputs.server }} \
+            --database ${{ steps.sql.outputs.database }} \
+            --query "name" -o tsv
+
+      - name: Deployment Summary
+        run: |
+          echo "## Database Schema Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**SQL Server:** ${{ steps.sql.outputs.server }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Database:** ${{ steps.sql.outputs.database }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Permissions Granted:** ${{ inputs.grant_permissions || github.event_name == 'push' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✓ Deployed successfully" >> $GITHUB_STEP_SUMMARY

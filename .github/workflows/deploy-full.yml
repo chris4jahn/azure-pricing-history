@@ -1,0 +1,320 @@
+name: Deploy Full Solution
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      skip_infrastructure:
+        description: 'Skip infrastructure deployment (Terraform)'
+        required: false
+        type: boolean
+        default: false
+      skip_database:
+        description: 'Skip database schema deployment'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_infrastructure }}
+    environment: ${{ inputs.environment }}
+    outputs:
+      resource_group: ${{ steps.terraform.outputs.resource_group }}
+      function_app_name: ${{ steps.terraform.outputs.function_app_name }}
+      web_app_name: ${{ steps.terraform.outputs.web_app_name }}
+      sql_server: ${{ steps.terraform.outputs.sql_server }}
+      sql_database: ${{ steps.terraform.outputs.sql_database }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5"
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: ./infra/terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./infra/terraform
+        run: |
+          terraform plan \
+            -var-file=envs/${{ inputs.environment }}.tfvars \
+            -out=tfplan
+
+      - name: Terraform Apply
+        id: terraform
+        working-directory: ./infra/terraform
+        run: |
+          terraform apply -auto-approve tfplan
+          
+          # Export outputs for other jobs
+          echo "resource_group=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          echo "function_app_name=$(terraform output -raw function_app_name)" >> $GITHUB_OUTPUT
+          echo "web_app_name=$(terraform output -raw web_app_name)" >> $GITHUB_OUTPUT
+          echo "sql_server=$(terraform output -raw sql_server_name)" >> $GITHUB_OUTPUT
+          echo "sql_database=$(terraform output -raw sql_database_name)" >> $GITHUB_OUTPUT
+
+  deploy-database:
+    name: Deploy Database Schema
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: |
+      always() && 
+      !cancelled() && 
+      !inputs.skip_database &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get SQL Server details
+        id: sql
+        run: |
+          if [ -n "${{ needs.deploy-infrastructure.outputs.sql_server }}" ]; then
+            echo "server=${{ needs.deploy-infrastructure.outputs.sql_server }}" >> $GITHUB_OUTPUT
+            echo "database=${{ needs.deploy-infrastructure.outputs.sql_database }}" >> $GITHUB_OUTPUT
+          else
+            # Get from existing infrastructure
+            cd infra/terraform
+            terraform init
+            echo "server=$(terraform output -raw sql_server_name)" >> $GITHUB_OUTPUT
+            echo "database=$(terraform output -raw sql_database_name)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install pyodbc azure-identity
+
+      - name: Deploy SQL Schema
+        working-directory: ./scripts
+        env:
+          SQL_SERVER: ${{ steps.sql.outputs.server }}
+          SQL_DATABASE: ${{ steps.sql.outputs.database }}
+        run: python deploy_schema.py
+
+      - name: Grant Function App Permissions
+        run: |
+          # This requires Azure AD admin permissions
+          # Execute grant_function_permissions.sql
+          echo "Granting Function App permissions..."
+          az sql db query \
+            --server ${{ steps.sql.outputs.server }} \
+            --database ${{ steps.sql.outputs.database }} \
+            --auth-mode ActiveDirectoryIntegrated \
+            --query-file ./scripts/grant_function_permissions.sql
+
+      - name: Grant Web App Permissions
+        run: |
+          echo "Granting Web App permissions..."
+          az sql db query \
+            --server ${{ steps.sql.outputs.server }} \
+            --database ${{ steps.sql.outputs.database }} \
+            --auth-mode ActiveDirectoryIntegrated \
+            --query-file ./scripts/grant_webapp_permissions.sql
+
+  deploy-function-app:
+    name: Deploy Function App
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, deploy-database]
+    if: |
+      always() && 
+      !cancelled() &&
+      (needs.deploy-database.result == 'success' || needs.deploy-database.result == 'skipped')
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Function App details
+        id: function
+        run: |
+          if [ -n "${{ needs.deploy-infrastructure.outputs.function_app_name }}" ]; then
+            echo "name=${{ needs.deploy-infrastructure.outputs.function_app_name }}" >> $GITHUB_OUTPUT
+            echo "resource_group=${{ needs.deploy-infrastructure.outputs.resource_group }}" >> $GITHUB_OUTPUT
+          else
+            cd infra/terraform
+            terraform init
+            echo "name=$(terraform output -raw function_app_name)" >> $GITHUB_OUTPUT
+            echo "resource_group=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./src/functions-python
+        run: |
+          pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ steps.function.outputs.name }}
+          package: ./src/functions-python
+          respect-funcignore: true
+
+  deploy-web-app:
+    name: Deploy Web App
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, deploy-database]
+    if: |
+      always() && 
+      !cancelled() &&
+      (needs.deploy-database.result == 'success' || needs.deploy-database.result == 'skipped')
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Web App details
+        id: webapp
+        run: |
+          if [ -n "${{ needs.deploy-infrastructure.outputs.web_app_name }}" ]; then
+            echo "name=${{ needs.deploy-infrastructure.outputs.web_app_name }}" >> $GITHUB_OUTPUT
+            echo "resource_group=${{ needs.deploy-infrastructure.outputs.resource_group }}" >> $GITHUB_OUTPUT
+          else
+            cd infra/terraform
+            terraform init
+            echo "name=$(terraform output -raw web_app_name)" >> $GITHUB_OUTPUT
+            echo "resource_group=$(terraform output -raw resource_group_name)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Create deployment package
+        working-directory: ./src/webapp
+        run: |
+          pip install -r requirements.txt
+          # Package the app
+          zip -r ../../webapp.zip . -x "*.pyc" -x "__pycache__/*" -x ".venv/*"
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.webapp.outputs.name }}
+          package: ./webapp.zip
+
+  verify-deployment:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-function-app, deploy-web-app]
+    if: always() && !cancelled()
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyodbc azure-identity requests
+
+      - name: Test Database Connection
+        working-directory: ./scripts
+        run: python test_auth.py
+
+      - name: Get Web App URL
+        id: webapp_url
+        run: |
+          cd infra/terraform
+          terraform init
+          echo "url=https://$(terraform output -raw web_app_name).azurewebsites.net" >> $GITHUB_OUTPUT
+
+      - name: Test Web App
+        run: |
+          echo "Testing Web App at ${{ steps.webapp_url.outputs.url }}"
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.webapp_url.outputs.url }})
+          if [ "$response" == "200" ]; then
+            echo "✓ Web App is responding"
+          else
+            echo "✗ Web App returned status: $response"
+            exit 1
+          fi
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Infrastructure:** ${{ needs.deploy-infrastructure.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Database:** ${{ needs.deploy-database.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Function App:** ${{ needs.deploy-function-app.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Web App:** ${{ needs.deploy-web-app.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Web App URL:** ${{ steps.webapp_url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
