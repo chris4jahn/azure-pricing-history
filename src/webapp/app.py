@@ -48,6 +48,16 @@ class WebAppConfig:
 config = WebAppConfig.from_environment()
 authenticator = AzureSqlAuthenticator(config.sql_config)
 
+# Security: Add headers to all responses
+@app.after_request
+def add_security_headers(response):
+    """Add security headers"""
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
+
 class DatabaseQueryService:
     """Service for executing database queries"""
     
@@ -461,7 +471,7 @@ def get_summary():
         return jsonify(summary)
     except Exception as e:
         logger.error(f"Error getting summary: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An error occurred'}), 500
 
 
 @app.route('/api/services')
@@ -542,7 +552,7 @@ def search_prices():
         return jsonify(results)
     except Exception as e:
         logger.error(f"Error searching prices: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'An error occurred'}), 500
 
 
 @app.route('/api/hierarchical')

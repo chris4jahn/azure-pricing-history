@@ -46,16 +46,61 @@
         </div>
         
         <div class="controls">
-            <label for="currencySelect">Currency:</label>
-            <select id="currencySelect" onchange="loadPricingTree()">
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-            </select>
+            <div class="control-group">
+                <label for="searchInput">🔍 Search:</label>
+                <input type="text" id="searchInput" placeholder="Search services, SKUs, meters..." oninput="applyFilters()">
+            </div>
+            
+            <div class="control-group">
+                <label for="categoryFilter">📂 Categories:</label>
+                <div class="multi-select-wrapper">
+                    <div class="multi-select-display" id="categoryDisplay" onclick="toggleDropdown('category')">
+                        <span>All Categories</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    <div class="multi-select-dropdown" id="categoryDropdown">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search categories..." oninput="filterDropdownOptions('category', this.value)">
+                        </div>
+                        <div class="dropdown-options" id="categoryOptions">
+                            <label><input type="checkbox" value="all" onchange="toggleAllCategories(this)"> <strong>Select All</strong></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="regionFilter">🌍 Regions:</label>
+                <div class="multi-select-wrapper">
+                    <div class="multi-select-display" id="regionDisplay" onclick="toggleDropdown('region')">
+                        <span>All Regions</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    <div class="multi-select-dropdown" id="regionDropdown">
+                        <div class="dropdown-search">
+                            <input type="text" placeholder="Search regions..." oninput="filterDropdownOptions('region', this.value)">
+                        </div>
+                        <div class="dropdown-options" id="regionOptions">
+                            <label><input type="checkbox" value="all" onchange="toggleAllRegions(this)"> <strong>Select All</strong></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="currencySelect">💱 Currency:</label>
+                <select id="currencySelect" onchange="loadPricingTree()">
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                </select>
+            </div>
+            
+            <button class="clear-filters-btn" onclick="clearAllFilters()">Clear Filters</button>
         </div>
         
         <div class="main-grid">
             <div class="pricing-tree-container">
-                <h2>📋 Azure Pricing by Category</h2>
+                <h2>📋 Azure Pricing by Category <span id="filterIndicator" class="filter-indicator"></span></h2>
                 <div id="pricingTree">
                     <div class="loading">Loading pricing data...</div>
                 </div>
@@ -80,6 +125,9 @@
         let hierarchicalData = [];
         let selectedMeterId = null;
         let selectedSkuFamily = null;
+        let allRegions = new Set();
+        let selectedCategories = new Set();
+        let selectedRegions = new Set();
         
         // Dark mode toggle
         function toggleDarkMode() {
@@ -131,6 +179,330 @@
             loadDarkModePreference();
             await loadSummary();
             await loadPricingTree();
+            await loadFilters();
+            setupEventListeners();
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!event.target.closest('.multi-select-wrapper')) {
+                    document.querySelectorAll('.multi-select-dropdown').forEach(dropdown => {
+                        dropdown.classList.remove('active');
+                    });
+                    document.querySelectorAll('.multi-select-display').forEach(display => {
+                        display.classList.remove('active');
+                    });
+                }
+            });
+        }
+        
+        // Load filter options
+        async function loadFilters() {
+            try {
+                const currency = document.getElementById('currencySelect').value;
+                const response = await fetch(`/api/hierarchical?currency=${currency}`);
+                const data = await response.json();
+                
+                // Extract unique regions from all data
+                allRegions.clear();
+                data.forEach(category => {
+                    category.skuFamilies.forEach(sku => {
+                        // We'll need to get regions from the actual data
+                        // For now, we'll populate categories
+                    });
+                });
+                
+                populateCategoryFilter(data);
+                populateRegionFilter();
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+        
+        function populateCategoryFilter(data) {
+            const container = document.getElementById('categoryOptions');
+            const selectAllCheckbox = container.querySelector('input[value="all"]');
+            
+            // Clear existing options except "Select All"
+            Array.from(container.children).slice(1).forEach(child => child.remove());
+            
+            // Add category options
+            data.forEach(category => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = category.name;
+                checkbox.checked = true;
+                checkbox.onchange = () => {
+                    updateCategorySelection();
+                    applyFilters();
+                };
+                
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(' ' + category.name));
+                container.appendChild(label);
+                
+                selectedCategories.add(category.name);
+            });
+        }
+        
+        async function populateRegionFilter() {
+            try {
+                // Fetch distinct regions from the API
+                const response = await fetch('/api/regions');
+                const regions = await response.json();
+                
+                const container = document.getElementById('regionOptions');
+                const selectAllCheckbox = container.querySelector('input[value="all"]');
+                
+                // Clear existing options except "Select All"
+                Array.from(container.children).slice(1).forEach(child => child.remove());
+                
+                regions.sort().forEach(region => {
+                    const label = document.createElement('label');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = region;
+                    checkbox.checked = true;
+                    checkbox.onchange = () => {
+                        updateRegionSelection();
+                    };
+                    
+                    label.appendChild(checkbox);
+                    label.appendChild(document.createTextNode(' ' + region));
+                    container.appendChild(label);
+                    
+                    selectedRegions.add(region);
+                });
+            } catch (error) {
+                console.error('Error loading regions:', error);
+            }
+        }
+        
+        function toggleDropdown(type) {
+            const dropdown = document.getElementById(type + 'Dropdown');
+            const display = document.getElementById(type + 'Display');
+            
+            // Close other dropdowns
+            document.querySelectorAll('.multi-select-dropdown').forEach(dd => {
+                if (dd !== dropdown) {
+                    dd.classList.remove('active');
+                }
+            });
+            document.querySelectorAll('.multi-select-display').forEach(disp => {
+                if (disp !== display) {
+                    disp.classList.remove('active');
+                }
+            });
+            
+            // Toggle current dropdown
+            dropdown.classList.toggle('active');
+            display.classList.toggle('active');
+        }
+        
+        function toggleAllCategories(checkbox) {
+            const container = document.getElementById('categoryOptions');
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            
+            updateCategorySelection();
+            applyFilters();
+        }
+        
+        function toggleAllRegions(checkbox) {
+            const container = document.getElementById('regionOptions');
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            
+            updateRegionSelection();
+            applyFilters();
+        }
+        
+        function updateCategorySelection() {
+            const container = document.getElementById('categoryOptions');
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
+            const selectAllCheckbox = container.querySelector('input[value="all"]');
+            
+            selectedCategories.clear();
+            let checkedCount = 0;
+            
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedCategories.add(cb.value);
+                    checkedCount++;
+                }
+            });
+            
+            // Update "Select All" checkbox state
+            selectAllCheckbox.checked = checkedCount === checkboxes.length;
+            
+            // Update display text
+            const display = document.getElementById('categoryDisplay').querySelector('span');
+            if (checkedCount === 0) {
+                display.textContent = 'No Categories';
+            } else if (checkedCount === checkboxes.length) {
+                display.textContent = 'All Categories';
+            } else {
+                display.innerHTML = `${checkedCount} Selected <span class="filter-badge">${checkedCount}</span>`;
+            }
+        }
+        
+        function updateRegionSelection() {
+            const container = document.getElementById('regionOptions');
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:not([value="all"])');
+            const selectAllCheckbox = container.querySelector('input[value="all"]');
+            
+            selectedRegions.clear();
+            let checkedCount = 0;
+            
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedRegions.add(cb.value);
+                    checkedCount++;
+                }
+            });
+            
+            // Update "Select All" checkbox state
+            selectAllCheckbox.checked = checkedCount === checkboxes.length;
+            
+            // Update display text
+            const display = document.getElementById('regionDisplay').querySelector('span');
+            if (checkedCount === 0) {
+                display.textContent = 'No Regions';
+            } else if (checkedCount === checkboxes.length) {
+                display.textContent = 'All Regions';
+            } else {
+                display.innerHTML = `${checkedCount} Selected <span class="filter-badge">${checkedCount}</span>`;
+            }
+            
+            // Re-render any expanded SKUs with the new region filter
+            refilterExpandedSkus();
+        }
+        
+        function refilterExpandedSkus() {
+            // Find all expanded SKU containers and re-render them with current filters
+            document.querySelectorAll('.children.expanded').forEach(container => {
+                if (container.dataset.allMeters) {
+                    const allMeters = JSON.parse(container.dataset.allMeters);
+                    const skuFamily = container.id.match(/sku-(\d+)-(\d+)/);
+                    if (skuFamily && allMeters.length > 0) {
+                        renderSkuMeters(container, allMeters, allMeters[0].productName || '');
+                    }
+                }
+            });
+        }
+        
+        function filterDropdownOptions(type, searchTerm) {
+            const container = document.getElementById(type + 'Options');
+            const labels = container.querySelectorAll('label:not(:first-child)');
+            
+            searchTerm = searchTerm.toLowerCase();
+            
+            labels.forEach(label => {
+                const text = label.textContent.toLowerCase();
+                label.style.display = text.includes(searchTerm) ? 'flex' : 'none';
+            });
+        }
+        
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            if (!hierarchicalData || hierarchicalData.length === 0) {
+                return;
+            }
+            
+            // Filter and modify categories
+            const filteredData = hierarchicalData
+                .filter(category => {
+                    // Check if category is selected in filter
+                    if (selectedCategories.size > 0 && !selectedCategories.has(category.name)) {
+                        return false;
+                    }
+                    
+                    // If there's a search term, check if category or any SKU matches
+                    if (searchTerm) {
+                        const categoryMatch = category.name.toLowerCase().includes(searchTerm);
+                        const hasMatchingSku = category.skuFamilies.some(sku => 
+                            sku.name.toLowerCase().includes(searchTerm)
+                        );
+                        return categoryMatch || hasMatchingSku;
+                    }
+                    
+                    return true;
+                })
+                .map(category => {
+                    // If there's a search term, filter SKU families within each category
+                    if (searchTerm) {
+                        const filteredSkus = category.skuFamilies.filter(sku => 
+                            category.name.toLowerCase().includes(searchTerm) ||
+                            sku.name.toLowerCase().includes(searchTerm)
+                        );
+                        
+                        // Return category with filtered SKUs
+                        return {
+                            ...category,
+                            skuFamilies: filteredSkus,
+                            totalMeters: filteredSkus.reduce((sum, sku) => sum + sku.meterCount, 0)
+                        };
+                    }
+                    
+                    return category;
+                });
+            
+            // Update filter indicator
+            updateFilterIndicator(filteredData.length);
+            
+            // Update the display with filtered data
+            renderPricingTree(filteredData);
+        }
+        
+        function updateFilterIndicator(visibleCount) {
+            const indicator = document.getElementById('filterIndicator');
+            const searchTerm = document.getElementById('searchInput').value;
+            const totalCategories = hierarchicalData.length;
+            const selectedCatCount = selectedCategories.size;
+            
+            let filterText = '';
+            
+            if (searchTerm || selectedCatCount < totalCategories) {
+                if (visibleCount === 0) {
+                    filterText = '(No matches)';
+                } else if (visibleCount < totalCategories) {
+                    filterText = `(Showing ${visibleCount} of ${totalCategories})`;
+                }
+            }
+            
+            indicator.textContent = filterText;
+        }
+        
+        function clearAllFilters() {
+            // Clear search input
+            document.getElementById('searchInput').value = '';
+            
+            // Select all categories
+            const categoryContainer = document.getElementById('categoryOptions');
+            categoryContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+            });
+            updateCategorySelection();
+            
+            // Select all regions
+            const regionContainer = document.getElementById('regionOptions');
+            regionContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+            });
+            updateRegionSelection();
+            
+            // Re-render with all data
+            renderPricingTree();
         }
         
         async function loadSummary() {
@@ -153,26 +525,28 @@
                 const response = await fetch(`/api/hierarchical?currency=${currency}`);
                 hierarchicalData = await response.json();
                 
-                renderPricingTree();
+                await loadFilters();
+                applyFilters();
             } catch (error) {
                 console.error('Error loading pricing tree:', error);
                 document.getElementById('pricingTree').innerHTML = '<div class="error">Error loading pricing data</div>';
             }
         }
         
-        function renderPricingTree() {
+        function renderPricingTree(dataToRender) {
             const container = document.getElementById('pricingTree');
+            const data = dataToRender || hierarchicalData;
             
-            if (!hierarchicalData || hierarchicalData.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No pricing data available</p>';
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--text-tertiary); padding: 40px;">No pricing data matches your filters</p>';
                 return;
             }
             
             // Sort categories by total meters descending
-            hierarchicalData.sort((a, b) => b.totalMeters - a.totalMeters);
+            const sortedData = [...data].sort((a, b) => b.totalMeters - a.totalMeters);
             
             let html = '';
-            hierarchicalData.forEach((category, catIndex) => {
+            sortedData.forEach((category, catIndex) => {
                 html += `
                     <div class="tree-item">
                         <div class="category-header" onclick="toggleCategory(${catIndex})">
@@ -247,37 +621,66 @@
             content.classList.add('expanded');
             icon.textContent = '−';
             
-            // Load meters if not already loaded
-            if (content.querySelector('.loading')) {
+            // Load meters if not already loaded or if we need to refilter
+            if (content.querySelector('.loading') || !content.dataset.allMeters) {
                 try {
                     const currency = document.getElementById('currencySelect').value;
                     const response = await fetch(`/api/sku-meters/${encodeURIComponent(skuFamily)}?currency=${currency}`);
                     const meters = await response.json();
                     
-                    let html = '';
-                    meters.slice(0, 20).forEach(meter => {
-                        html += `
-                            <div class="meter-item" onclick="loadMeterHistory('${meter.meterId}', '${escapeHtml(meter.meterName)}', '${escapeHtml(skuFamily)}')">
-                                <div class="item-info">
-                                    ${meter.meterName} - ${meter.region || 'Global'}
-                                </div>
-                                <div class="item-stats">
-                                    <span class="stat-badge">${getCurrencySymbol()}${meter.price.toFixed(4)} / ${meter.unit}</span>
-                                </div>
-                            </div>
-                        `;
-                    });
+                    // Store all meters for filtering
+                    content.dataset.allMeters = JSON.stringify(meters);
                     
-                    if (meters.length > 20) {
-                        html += `<p style="text-align: center; color: #999; padding: 10px; font-size: 0.85rem;">+ ${meters.length - 20} more meters</p>`;
-                    }
-                    
-                    content.innerHTML = html;
+                    // Render with current filters
+                    renderSkuMeters(content, meters, skuFamily);
                 } catch (error) {
                     console.error('Error loading SKU meters:', error);
                     content.innerHTML = '<div class="error" style="margin: 10px; font-size: 0.9rem;">Error loading meters</div>';
                 }
+            } else {
+                // Re-render with current region filter
+                const allMeters = JSON.parse(content.dataset.allMeters);
+                renderSkuMeters(content, allMeters, skuFamily);
             }
+        }
+        
+        function renderSkuMeters(content, allMeters, skuFamily) {
+            // Apply region filter
+            let meters = allMeters;
+            const totalRegions = document.querySelectorAll('#regionOptions input[type="checkbox"]:not([value="all"])').length;
+            
+            if (selectedRegions.size > 0 && selectedRegions.size < totalRegions) {
+                meters = allMeters.filter(meter => selectedRegions.has(meter.region));
+            }
+            
+            if (meters.length === 0) {
+                content.innerHTML = '<div style="padding: 10px; font-size: 0.9rem; color: var(--text-tertiary); text-align: center;">No meters match selected regions</div>';
+                return;
+            }
+            
+            let html = '';
+            const displayLimit = 20;
+            meters.slice(0, displayLimit).forEach(meter => {
+                html += `
+                    <div class="meter-item" onclick="loadMeterHistory('${meter.meterId}', '${escapeHtml(meter.meterName)}', '${escapeHtml(skuFamily)}')">
+                        <div class="item-info">
+                            ${meter.meterName} - ${meter.region || 'Global'}
+                        </div>
+                        <div class="item-stats">
+                            <span class="stat-badge">${getCurrencySymbol()}${meter.price.toFixed(4)} / ${meter.unit}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (meters.length > displayLimit) {
+                const remaining = meters.length - displayLimit;
+                const regionFilterActive = selectedRegions.size > 0 && selectedRegions.size < totalRegions;
+                const totalText = regionFilterActive ? ` (${allMeters.length} total before region filter)` : '';
+                html += `<p style="text-align: center; color: var(--text-tertiary); padding: 10px; font-size: 0.85rem;">+ ${remaining} more meters${totalText}</p>`;
+            }
+            
+            content.innerHTML = html;
         }
         
         async function loadMeterHistory(meterId, meterName, skuFamily) {

@@ -175,12 +175,36 @@ header p {
     display: flex;
     gap: 15px;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 200px;
 }
 
 .controls label {
     font-weight: 600;
     color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.controls input[type="text"] {
+    padding: 10px 15px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    width: 300px;
+}
+
+.controls input[type="text"]:focus {
+    outline: none;
+    border-color: var(--category-border);
 }
 
 .controls select {
@@ -196,6 +220,164 @@ header p {
 .controls select:focus {
     outline: none;
     border-color: var(--category-border);
+}
+
+.multi-select-wrapper {
+    position: relative;
+    min-width: 250px;
+}
+
+.multi-select-display {
+    padding: 10px 15px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: border-color 0.3s ease;
+}
+
+.multi-select-display:hover {
+    border-color: var(--category-border);
+}
+
+.multi-select-display.active {
+    border-color: var(--category-border);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.dropdown-arrow {
+    font-size: 0.8rem;
+    transition: transform 0.3s ease;
+}
+
+.multi-select-display.active .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.multi-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border: 2px solid var(--category-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 4px 6px var(--shadow);
+}
+
+.multi-select-dropdown.active {
+    display: block;
+}
+
+.dropdown-search {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+    sticky: top 0;
+    background: var(--card-bg);
+}
+
+.dropdown-search input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.dropdown-search input:focus {
+    outline: none;
+    border-color: var(--category-border);
+}
+
+.dropdown-options {
+    padding: 10px;
+}
+
+.dropdown-options label {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+    font-weight: normal;
+}
+
+.dropdown-options label:hover {
+    background: var(--category-hover);
+}
+
+.dropdown-options input[type="checkbox"] {
+    margin-right: 10px;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.clear-filters-btn {
+    padding: 10px 20px;
+    background: var(--category-border);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    align-self: flex-end;
+}
+
+.clear-filters-btn:hover {
+    background: var(--sku-border);
+    transform: translateY(-2px);
+}
+
+.clear-filters-btn:active {
+    transform: translateY(0);
+}
+
+.filter-badge {
+    display: inline-block;
+    background: var(--category-border);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    margin-left: 8px;
+    font-weight: bold;
+}
+
+.filter-indicator {
+    font-size: 0.8rem;
+    color: var(--category-border);
+    font-weight: normal;
+    margin-left: 10px;
+}
+
+.pricing-tree-container h2 {
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    padding: 10px 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .main-grid {
