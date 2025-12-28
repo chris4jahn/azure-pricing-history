@@ -33,6 +33,7 @@ PARAMS_PER_ITEM = 22
 RUN_STATUS_RUNNING = "RUNNING"
 RUN_STATUS_SUCCEEDED = "SUCCEEDED"
 RUN_STATUS_FAILED = "FAILED"
+MAX_EXECUTION_TIME_HOURS = 2  # Maximum time before considering a run as hung
 
 
 @dataclass(frozen=True)
@@ -81,10 +82,21 @@ def main(myTimer: func.TimerRequest) -> None:
     """Timer trigger function to fetch and store Azure pricing data"""
     utc_timestamp = datetime.now(timezone.utc).isoformat()
     
-    if myTimer.past_due:
+    # Log function invocation immediately
+    logging.info(f"=" * 80)
+    logging.info(f"FUNCTION INVOKED AT {utc_timestamp}")
+    logging.info(f"Timer parameter type: {type(myTimer)}")
+    logging.info(f"=" * 80)
+    
+    # Handle both timer and manual triggers
+    if myTimer and hasattr(myTimer, 'past_due') and myTimer.past_due:
         logging.warning(f"Timer is past due! Current time: {utc_timestamp}")
     
-    logging.info(f"PriceSnapshot timer trigger started at {utc_timestamp}")
+    trigger_type = "manual" if not myTimer or not hasattr(myTimer, 'past_due') else "timer"
+    logging.info(f"PriceSnapshot {trigger_type} trigger started at {utc_timestamp}")
+    
+    config = None
+    snapshot_id = None
     
     try:
         # Load and validate configuration
@@ -93,6 +105,10 @@ def main(myTimer: func.TimerRequest) -> None:
         
         # Generate snapshot ID (YYYYMM format)
         snapshot_id = datetime.now(timezone.utc).strftime("%Y%m")
+        
+        # Clean up any stuck snapshots from previous runs
+        with sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
+            cleanup_hung_snapshots(conn)
         
         logging.info("=" * 50)
         logging.info(f"STARTING PRICE SNAPSHOT: {snapshot_id}")
@@ -112,7 +128,48 @@ def main(myTimer: func.TimerRequest) -> None:
     except Exception as e:
         error_msg = f"PriceSnapshot failed: {str(e)}"
         logging.error(error_msg, exc_info=True)
+        
+        # Mark snapshot as failed if we have enough context
+        if config and snapshot_id:
+            try:
+                with sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
+                    db_service = DatabaseService(conn)
+                    # Update all running snapshots for this ID to FAILED
+                    db_service.mark_snapshot_failed(snapshot_id)
+            except Exception as cleanup_error:
+                logging.error(f"Failed to mark snapshot as failed: {cleanup_error}")
+        
         raise
+
+
+def cleanup_hung_snapshots(conn: pyodbc.Connection) -> None:
+    """
+    Clean up snapshots that have been running for too long
+    
+    Args:
+        conn: Database connection
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Update snapshots running for more than MAX_EXECUTION_TIME_HOURS hours
+        cursor.execute(f"""
+            UPDATE dbo.PriceSnapshotRuns
+            SET status = ?,
+                finishedUtc = GETUTCDATE()
+            WHERE status = ?
+                AND DATEDIFF(HOUR, startedUtc, GETUTCDATE()) > ?
+        """, RUN_STATUS_FAILED, RUN_STATUS_RUNNING, MAX_EXECUTION_TIME_HOURS)
+        
+        rows_updated = cursor.rowcount
+        if rows_updated > 0:
+            logging.warning(f"Cleaned up {rows_updated} hung snapshot(s) - marked as FAILED (timeout)")
+        
+        conn.commit()
+        
+    except Exception as e:
+        logging.error(f"Failed to cleanup hung snapshots: {e}")
+        # Don't raise - this is cleanup, main execution should continue
 
 
 def process_all_currencies(config: PricingConfig, snapshot_id: str) -> List[str]:
@@ -316,6 +373,36 @@ class DatabaseService:
         cursor.close()
         
         logging.info(f"Updated snapshot {snapshot_id}_{currency} to {status} with {item_count} items")
+    
+    def mark_snapshot_failed(self, snapshot_id: str, currency: str = None) -> None:
+        """
+        Mark snapshot as failed (for all currencies or specific currency)
+        
+        Args:
+            snapshot_id: Snapshot identifier
+            currency: Optional currency code (if None, marks all currencies for snapshot)
+        """
+        cursor = self.conn.cursor()
+        
+        if currency:
+            sql = """
+            UPDATE dbo.PriceSnapshotRuns
+            SET finishedUtc = SYSUTCDATETIME(), status = ?
+            WHERE snapshotId = ? AND currencyCode = ? AND status = ?
+            """
+            cursor.execute(sql, RUN_STATUS_FAILED, snapshot_id, currency, RUN_STATUS_RUNNING)
+        else:
+            sql = """
+            UPDATE dbo.PriceSnapshotRuns
+            SET finishedUtc = SYSUTCDATETIME(), status = ?
+            WHERE snapshotId = ? AND status = ?
+            """
+            cursor.execute(sql, RUN_STATUS_FAILED, snapshot_id, RUN_STATUS_RUNNING)
+        
+        self.conn.commit()
+        cursor.close()
+        
+        logging.warning(f"Marked snapshot {snapshot_id} as FAILED")
     
     def upsert_prices_batch(self, snapshot_id: str, currency: str, items: List[Dict[str, Any]], batch_size: int) -> int:
         """

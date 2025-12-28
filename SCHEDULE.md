@@ -31,11 +31,39 @@ The Azure Function runs at **01:30 UTC** on the following dates:
 
 ## Next Execution Dates (2025-2026)
 
-- ✅ 2025-12-26 (Manual execution - testing)
+- ✅ 2025-12-26 at 15:50 UTC (Manual - stuck, marked FAILED)
+- ✅ 2025-12-28 at 17:56 UTC (Manual - via ManualTrigger HTTP function)
 - 📅 2026-01-01 at 01:30 UTC
 - 📅 2026-04-01 at 01:30 UTC
 - 📅 2026-07-01 at 01:30 UTC
 - 📅 2026-10-01 at 01:30 UTC
+
+## Manual Execution
+
+### ManualTrigger HTTP Function
+
+A dedicated HTTP-triggered function allows manual data collection anytime:
+
+```bash
+# Using master key (works for all functions)
+curl -X POST "https://func-pricing-dev-gwc.azurewebsites.net/api/manualtrigger?code=<MASTER_KEY>"
+
+# Get master key
+az functionapp keys list --name func-pricing-dev-gwc \
+  --resource-group rg-pricing-dev-gwc \
+  --query "masterKey" -o tsv
+```
+
+**Response**: HTTP 200 with execution summary on success, HTTP 500 on error
+
+**Execution Time**: 10-15 minutes for full data collection
+
+### Function Characteristics
+
+- **Idempotent**: Can safely re-run for same month
+- **Auto-cleanup**: Marks hung snapshots (>2 hours) as FAILED
+- **Error Handling**: Failed snapshots marked in database
+- **Async Execution**: Returns immediately, processes in background
 
 ## Modification
 
@@ -48,13 +76,4 @@ Then redeploy:
 ```bash
 cd src/functions-python
 func azure functionapp publish func-pricing-dev-gwc --python
-```
-
-## Testing
-
-To manually trigger the function for testing:
-```bash
-az functionapp function show --name func-pricing-dev-gwc \
-  --resource-group rg-pricing-dev-gwc \
-  --function-name PriceSnapshot
 ```

@@ -10,11 +10,14 @@ This service runs quarterly via Azure Functions (Timer Trigger) to:
 - Store data in Azure SQL Database (Serverless) with full historicization
 - Track price changes over time with snapshot-based versioning
 - Use Managed Identities for secure, passwordless authentication
+- Manual execution via HTTP trigger for on-demand data collection
 
 ## Architecture
 
 - **Runtime**: Azure Functions (Python 3.11, Consumption Plan)
-- **Trigger**: Timer (Cron: `0 30 1 1 1,4,7,10 *` - Quarterly on Jan 1, Apr 1, Jul 1, Oct 1 at 01:30 UTC)
+- **Triggers**: 
+  - **PriceSnapshot** (Timer): Cron `0 30 1 1 1,4,7,10 *` - Quarterly on Jan 1, Apr 1, Jul 1, Oct 1 at 01:30 UTC
+  - **ManualTrigger** (HTTP): On-demand execution via API endpoint
 - **Database**: Azure SQL Database (Serverless, GP_S_Gen5_1)
 - **Security**: System-assigned Managed Identity (no secrets in code)
 - **Monitoring**: Application Insights with structured logging
@@ -28,8 +31,11 @@ This service runs quarterly via Azure Functions (Timer Trigger) to:
 │   │   ├── host.json              # Function host configuration
 │   │   ├── requirements.txt       # Python dependencies
 │   │   ├── local.settings.json.example
-│   │   └── PriceSnapshot/         # Timer trigger function
-│   │       ├── __init__.py        # Function implementation
+│   │   ├── PriceSnapshot/         # Timer trigger function (quarterly)
+│   │   │   ├── __init__.py        # Function implementation
+│   │   │   └── function.json      # Function binding configuration
+│   │   └── ManualTrigger/         # HTTP trigger function (on-demand)
+│   │       ├── __init__.py        # HTTP wrapper for manual execution
 │   │       └── function.json      # Function binding configuration
 │   └── shared/
 │       └── sql/                   # Database scripts
@@ -152,6 +158,26 @@ pip install -r requirements.txt
 func start
 ```
 
+### Manual Execution
+
+Trigger data collection on-demand via HTTP:
+
+```bash
+# Get master key
+MASTER_KEY=$(az functionapp keys list --name func-pricing-dev-gwc \
+  --resource-group rg-pricing-dev-gwc \
+  --query "masterKey" -o tsv)
+
+# Trigger manual execution
+curl -X POST "https://func-pricing-dev-gwc.azurewebsites.net/api/manualtrigger?code=${MASTER_KEY}"
+```
+
+**Response**: HTTP 200 with execution summary on success, HTTP 500 with error details on failure.
+
+**Execution Time**: 10-15 minutes for complete data collection across all currencies and services.
+
+**Idempotency**: Safe to re-run multiple times - existing snapshot data will be updated (not duplicated).
+
 ## Features
 
 ### Idempotency
@@ -164,6 +190,8 @@ func start
 - 5 retry attempts with 2^n second delays
 - Transient error handling for network issues
 - Failed runs marked in `PriceSnapshotRuns` table
+- Automatic cleanup of hung snapshots (>2 hours in RUNNING status)
+- Enhanced logging with trigger type detection (timer vs manual)
 
 ### Performance
 - Batch processing (500 items per transaction)
