@@ -43,7 +43,7 @@ az functionapp config appsettings set \
     "SQL_DATABASE_NAME=sqldb-pricing-dev" \
     "API_VERSION=2023-01-01-preview" \
     "CURRENCIES=USD,EUR" \
-    "BATCH_SIZE=500" \
+    "BATCH_SIZE=90" \
   --output none
 
 echo "✓ App settings updated"

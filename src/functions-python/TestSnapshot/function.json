@@ -1,0 +1,13 @@
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "name": "myTimer",
+      "type": "timerTrigger",
+      "direction": "in",
+      "schedule": "0 34 18 28 12 *",
+      "runOnStartup": false,
+      "useMonitor": false
+    }
+  ]
+}

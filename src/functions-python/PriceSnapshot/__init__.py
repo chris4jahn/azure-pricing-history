@@ -16,10 +16,11 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# Add shared module to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
-from azure_sql_auth import get_sql_connection, sql_connection
 
+# Local import for Azure Functions
+from .azure_sql_auth import AzureSqlAuthenticator, get_sql_connection
+
+__all__ = ['AzureSqlAuthenticator', 'get_sql_connection']
 
 # Constants
 API_BASE_URL = "https://prices.azure.com/api/retail/prices"
@@ -81,20 +82,34 @@ class PricingConfig:
 def main(myTimer: func.TimerRequest) -> None:
     """Timer trigger function to fetch and store Azure pricing data"""
     utc_timestamp = datetime.now(timezone.utc).isoformat()
-    
+
     # Log function invocation immediately
     logging.info(f"=" * 80)
     logging.info(f"FUNCTION INVOKED AT {utc_timestamp}")
     logging.info(f"Timer parameter type: {type(myTimer)}")
     logging.info(f"=" * 80)
-    
+
+    # Diagnostics: try to write to diagnostics table
+    try:
+        config_diag = PricingConfig.from_environment()
+        with get_sql_connection(config_diag.sql_server_fqdn, config_diag.sql_database_name) as conn_diag:
+            cursor_diag = conn_diag.cursor()
+            cursor_diag.execute(
+                "INSERT INTO dbo.FunctionDiagnostics (functionName, message) VALUES (?, ?)",
+                "PriceSnapshot", f"Function started at {utc_timestamp}"
+            )
+            conn_diag.commit()
+            cursor_diag.close()
+    except Exception as diag_exc:
+        logging.error(f"Diagnostics DB write failed: {diag_exc}")
+
     # Handle both timer and manual triggers
     if myTimer and hasattr(myTimer, 'past_due') and myTimer.past_due:
         logging.warning(f"Timer is past due! Current time: {utc_timestamp}")
-    
+
     trigger_type = "manual" if not myTimer or not hasattr(myTimer, 'past_due') else "timer"
     logging.info(f"PriceSnapshot {trigger_type} trigger started at {utc_timestamp}")
-    
+
     config = None
     snapshot_id = None
     
@@ -107,7 +122,7 @@ def main(myTimer: func.TimerRequest) -> None:
         snapshot_id = datetime.now(timezone.utc).strftime("%Y%m")
         
         # Clean up any stuck snapshots from previous runs
-        with sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
+        with get_sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
             cleanup_hung_snapshots(conn)
         
         logging.info("=" * 50)
@@ -132,7 +147,7 @@ def main(myTimer: func.TimerRequest) -> None:
         # Mark snapshot as failed if we have enough context
         if config and snapshot_id:
             try:
-                with sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
+                with get_sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
                     db_service = DatabaseService(conn)
                     # Update all running snapshots for this ID to FAILED
                     db_service.mark_snapshot_failed(snapshot_id)
@@ -188,7 +203,7 @@ def process_all_currencies(config: PricingConfig, snapshot_id: str) -> List[str]
     """
     results = []
     
-    with sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
+    with get_sql_connection(config.sql_server_fqdn, config.sql_database_name) as conn:
         for currency in config.currencies:
             currency = currency.strip()
             logging.info(f"Starting ingestion for currency: {currency}")
