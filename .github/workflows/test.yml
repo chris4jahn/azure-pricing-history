@@ -19,6 +19,10 @@ jobs:
   lint:
     name: Lint Code
     runs-on: ubuntu-latest
+    env:
+      SQL_SERVER_FQDN: dummy.server.net
+      SQL_DATABASE_NAME: dummydb
+      DEFAULT_CURRENCY: USD
     
     steps:
       - name: Checkout code
@@ -54,6 +58,10 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    env:
+      SQL_SERVER_FQDN: dummy.server.net
+      SQL_DATABASE_NAME: dummydb
+      DEFAULT_CURRENCY: USD
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
