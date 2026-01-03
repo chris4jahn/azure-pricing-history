@@ -1,0 +1,7 @@
+# Development dependencies for linting and testing
+pylint
+flake8
+black
+mypy
+pytest
+# Add any other dev dependencies below
