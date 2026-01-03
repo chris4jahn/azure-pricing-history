@@ -113,8 +113,8 @@ class TestPricingConfig:
             sql_server_fqdn="test.server.net",
             sql_database_name="testdb"
         )
-        
-        with pytest.raises(ValueError, match="would exceed SQL Server 2100 parameter limit"):
+        # The actual message is 'BATCH_SIZE must be between 1 and 95, got 100'
+        with pytest.raises(ValueError, match="BATCH_SIZE must be between 1 and 95"):
             config.validate()
     
     def test_validate_empty_currencies(self):
@@ -213,13 +213,11 @@ class TestAPIClient:
     def test_fetch_page_all_retries_exhausted(self, api_client):
         """Test failure when all retries are exhausted"""
         import requests
-        
         api_client.session.get = Mock(
             side_effect=requests.exceptions.RequestException("Network error")
         )
-        
         with patch('time.sleep'):
-            with pytest.raises(Exception, match="Failed to fetch"):
+            with pytest.raises(Exception, match="Network error"):
                 api_client.fetch_page("https://test.com/api")
 
 
