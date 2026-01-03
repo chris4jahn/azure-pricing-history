@@ -17,8 +17,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
-# Local import for Azure Functions
-from .azure_sql_auth import AzureSqlAuthenticator, get_sql_connection
+# Absolute import for test compatibility
+from PriceSnapshot.azure_sql_auth import AzureSqlAuthenticator, get_sql_connection
 
 __all__ = ['AzureSqlAuthenticator', 'get_sql_connection']
 
