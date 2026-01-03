@@ -216,10 +216,7 @@ class TestAzureSqlAuthenticator:
         authenticator.get_connection = Mock(return_value=mock_conn)
         result = authenticator.test_connection()
         assert result is True
-            result = authenticator.test_connection()
-            
-            assert result is True
-            mock_cursor.execute.assert_called_once_with("SELECT 1 as test")
+        mock_cursor.execute.assert_called_once_with("SELECT 1 as test")
     
     def test_test_connection_failure(self, authenticator):
         """Test failed connection test"""
@@ -263,11 +260,14 @@ class TestConvenienceFunctions:
     
     def test_sql_connection_context_manager(self):
         """Test sql_connection context manager"""
-        mock_conn = Mock()
+        from unittest.mock import MagicMock
+        mock_conn = MagicMock()
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.__exit__.return_value = None
         with patch('azure_sql_auth.AzureSqlAuthenticator') as mock_auth_class:
             mock_auth = Mock()
-            mock_auth.get_connection.return_value = mock_conn
+            mock_auth.connection = MagicMock(return_value=mock_conn)
             mock_auth_class.return_value = mock_auth
             with sql_connection() as conn:
                 assert conn == mock_conn
-            mock_auth.connection.__exit__.assert_called_once()
+            mock_conn.__exit__.assert_called_once()
