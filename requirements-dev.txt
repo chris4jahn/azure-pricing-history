@@ -3,5 +3,7 @@ pylint
 flake8
 black
 mypy
+# Coverage plugin for pytest
 pytest
+pytest-cov
 # Add any other dev dependencies below
